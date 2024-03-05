@@ -29,8 +29,9 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
         let arrow = destination.polars().unwrap();
 
-        println!("dataframe size {:?}", arrow);
-    });
+        tracing::info!("dataframe size {:?}", arrow);
+    })
+    .await;
 
     tracing::info!("After get Arrow");
     // Return something that implements IntoResponse.
