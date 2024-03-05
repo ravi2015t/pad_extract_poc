@@ -11,10 +11,15 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     let message = format!("Hello , this is an AWS Lambda HTTP request");
 
+    tracing::info!("Inside the lambda function. ");
+
     let source_conn = SourceConn::try_from(
         "postgresql://dbo:dbo@partaccountpoc-cluster.cluster-ctcsve9jprsn.us-east-1.rds.amazonaws.com:5432/partaccountpoc?cxprotocol=binary",
     )
     .expect("parse conn str failed");
+
+    tracing::info!("After getting back connection.");
+
     let queries = &[CXQuery::from(
         "SELECT * FROM part_account where part_account.bekid=1",
     )];
