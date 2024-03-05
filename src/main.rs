@@ -1,6 +1,6 @@
 use connectorx::prelude::*;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, rc::Rc};
 
 /// This is the main body for the function.
 /// Write your code inside it.
@@ -20,15 +20,19 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     tracing::info!("After getting back connection.");
 
-    let queries = &[CXQuery::from(
-        "SELECT * FROM part_account where part_account.bekid=1",
-    )];
+    tokio::task::spawn_blocking(move || {
+        let queries = &[CXQuery::from(
+            "SELECT * FROM part_account where part_account.bekid=1",
+        )];
+        let destination: Arrow2Destination =
+            get_arrow2(&source_conn, None, queries).expect("run failed");
 
-    let destination: Arrow2Destination =
-        get_arrow2(&source_conn, None, queries).expect("run failed");
+        let arrow = destination.polars().unwrap();
 
-    let arrow = destination.polars().unwrap();
-    println!("dataframe size {:?}", arrow);
+        println!("dataframe size {:?}", arrow);
+    });
+
+    tracing::info!("After get Arrow");
     // Return something that implements IntoResponse.
     // It will be serialized to the right response event automatically by the runtime
     let resp = Response::builder()
