@@ -16,7 +16,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     )
     .expect("parse conn str failed");
     let queries = &[CXQuery::from(
-        "SELECT * FROM information_schema.columns where table_name = 'spicyperfmanager'",
+        "SELECT * FROM part_account where part_account.bekid=1",
     )];
 
     let destination: Arrow2Destination =
