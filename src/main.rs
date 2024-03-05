@@ -21,15 +21,12 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     tracing::info!("After getting back connection.");
 
     tokio::task::spawn_blocking(move || {
-        let queries = &[CXQuery::from(
-            "SELECT * FROM part_account where part_account.bekid=1",
-        )];
+        let queries = &[CXQuery::from("SELECT * FROM part_account")];
         let destination: Arrow2Destination =
             get_arrow2(&source_conn, None, queries).expect("run failed");
-
         let arrow = destination.polars().unwrap();
 
-        tracing::info!("dataframe size {:?}", arrow);
+        // tracing::info!("dataframe size {:?}", arrow);
     })
     .await;
 
