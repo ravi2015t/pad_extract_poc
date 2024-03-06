@@ -29,7 +29,7 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
     let mut handles = Vec::new();
 
-    for i in 1..10 {
+    for i in 1..99 {
         let src_conn = src_conn.clone();
         let handle = tokio::task::spawn_blocking(move || {
             let query = format!("SELECT * FROM part_account where part_account.bekid={}", i);
@@ -95,19 +95,19 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
     tracing::info!("After get Arrow");
 
-    let file_path = "/tmp/result1.parquet"; // Replace with your file path
+    // let file_path = "/tmp/result1.parquet"; // Replace with your file path
 
     // Open the file
-    let file = File::open(file_path)?;
+    // let file = File::open(file_path)?;
 
     // Get the metadata of the file, which includes information like size
-    let metadata = file.metadata()?;
+    // let metadata = file.metadata()?;
 
     // Extract the size from the metadata
-    let file_size = metadata.len();
+    // let file_size = metadata.len();
 
     // Print the file size
-    tracing::info!("Parquet File size: {} bytes", file_size);
+    // tracing::info!("Parquet File size: {} bytes", file_size);
 
     // Return something that implements IntoResponse.
     // It will be serialized to the right response event automatically by the runtime
