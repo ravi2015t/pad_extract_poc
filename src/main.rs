@@ -75,7 +75,7 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
     tracing::info!("After get Arrow");
 
-    let file_path = "/tmp/parquet_writer_test.parquet"; // Replace with your file path
+    let file_path = "/tmp/result1.parquet"; // Replace with your file path
 
     // Open the file
     let file = File::open(file_path)?;
