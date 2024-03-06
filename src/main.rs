@@ -29,7 +29,7 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
     let mut handles = Vec::new();
 
-    for i in 1..99 {
+    for i in 1..50 {
         let src_conn = src_conn.clone();
         let handle = tokio::task::spawn_blocking(move || {
             let query = format!("SELECT * FROM part_account where part_account.bekid={}", i);
