@@ -1,7 +1,9 @@
 use connectorx::prelude::*;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
+use polars::prelude::ParquetCompression;
+use polars::prelude::{df, ParquetWriter};
+use std::fs::File;
 use std::{convert::TryFrom, rc::Rc};
-
 /// This is the main body for the function.
 /// Write your code inside it.
 /// There are some code example in the following URLs:
@@ -21,16 +23,37 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     tracing::info!("After getting back connection.");
 
     tokio::task::spawn_blocking(move || {
-        let queries = &[CXQuery::from("SELECT * FROM part_account")];
+        let queries = &[CXQuery::from(
+            "SELECT * FROM part_account where part_account.bekid=1",
+        )];
         let destination: Arrow2Destination =
             get_arrow2(&source_conn, None, queries).expect("run failed");
-        let arrow = destination.polars().unwrap();
-
+        let mut df = destination.polars().unwrap();
+        ParquetWriter::new(std::fs::File::create("/tmp/parquet_writer_test.parquet").unwrap())
+            .with_statistics(true)
+            .with_compression(ParquetCompression::Uncompressed)
+            .finish(&mut df)
+            .unwrap();
         // tracing::info!("dataframe size {:?}", arrow);
     })
     .await;
 
     tracing::info!("After get Arrow");
+
+    let file_path = "/tmp/parquet_writer_test.parquet"; // Replace with your file path
+
+    // Open the file
+    let file = File::open(file_path)?;
+
+    // Get the metadata of the file, which includes information like size
+    let metadata = file.metadata()?;
+
+    // Extract the size from the metadata
+    let file_size = metadata.len();
+
+    // Print the file size
+    tracing::info!("Parquet File size: {} bytes", file_size);
+
     // Return something that implements IntoResponse.
     // It will be serialized to the right response event automatically by the runtime
     let resp = Response::builder()

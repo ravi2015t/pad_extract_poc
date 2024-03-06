@@ -17,6 +17,7 @@ edition = "2021"
 [dependencies]
 lambda_http = "0.10.0"
 connectorx = { version = "0.3.2", features = ["dst_arrow", "src_postgres", "dst_arrow2"] }
+polars = { version = "0.32.1", features = ["polars-io", "parquet", "lazy", "dtype-struct"] }
 openssl = { version = "0.10.35", features = ["vendored"] }
 tokio = { version = "1", features = ["macros"] }
 
