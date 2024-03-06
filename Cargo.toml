@@ -20,4 +20,5 @@ connectorx = { version = "0.3.2", features = ["dst_arrow", "src_postgres", "dst_
 polars = { version = "0.32.1", features = ["polars-io", "parquet", "lazy", "dtype-struct"] }
 openssl = { version = "0.10.35", features = ["vendored"] }
 tokio = { version = "1", features = ["macros"] }
+futures = "0.3.30"
 

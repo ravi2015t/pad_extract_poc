@@ -1,9 +1,11 @@
 use connectorx::prelude::*;
+use futures::future::try_join_all;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use polars::prelude::ParquetCompression;
 use polars::prelude::{df, ParquetWriter};
 use std::fs::File;
 use std::{convert::TryFrom, rc::Rc};
+use tokio::task::JoinSet;
 /// This is the main body for the function.
 /// Write your code inside it.
 /// There are some code example in the following URLs:
@@ -22,7 +24,9 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     tracing::info!("After getting back connection.");
 
-    tokio::task::spawn_blocking(move || {
+    let mut handles = Vec::new();
+
+    let handle = tokio::task::spawn_blocking(move || {
         let queries = &[CXQuery::from(
             "SELECT * FROM part_account where part_account.bekid=1",
         )];
@@ -35,8 +39,14 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
             .finish(&mut df)
             .unwrap();
         // tracing::info!("dataframe size {:?}", arrow);
-    })
-    .await;
+    });
+
+    handles.push(handle);
+    let results = try_join_all(handles).await;
+    match results {
+        Ok(_) => tracing::info!("All tasks completed successfully"),
+        Err(e) => tracing::error!("Error: {}", e),
+    }
 
     tracing::info!("After get Arrow");
 
