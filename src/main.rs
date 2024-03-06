@@ -29,16 +29,15 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
     let mut handles = Vec::new();
 
-    {
+    for i in 1..10 {
         let src_conn = src_conn.clone();
         let handle = tokio::task::spawn_blocking(move || {
-            let queries = &[CXQuery::from(
-                "SELECT * FROM part_account where part_account.bekid=1",
-            )];
+            let query = format!("SELECT * FROM part_account where part_account.bekid={}", i);
+            let queries = &[CXQuery::from(query.as_str())];
             let destination: Arrow2Destination =
                 get_arrow2(&src_conn, None, queries).expect("run failed");
             let mut df = destination.polars().unwrap();
-            ParquetWriter::new(std::fs::File::create("/tmp/result1.parquet").unwrap())
+            ParquetWriter::new(std::fs::File::create(format!("/tmp/result{}.parquet", i)).unwrap())
                 .with_statistics(true)
                 .with_compression(ParquetCompression::Uncompressed)
                 .finish(&mut df)
@@ -48,26 +47,47 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
         handles.push(handle);
     }
-    {
-        let src_conn = src_conn.clone();
-        let handle2 = tokio::task::spawn_blocking(move || {
-            let queries = &[CXQuery::from(
-                "SELECT * FROM part_account where part_account.bekid=2",
-            )];
-            let destination: Arrow2Destination =
-                get_arrow2(&src_conn, None, queries).expect("run failed");
-            let mut df = destination.polars().unwrap();
-            ParquetWriter::new(std::fs::File::create("/tmp/result2.parquet").unwrap())
-                .with_statistics(true)
-                .with_compression(ParquetCompression::Uncompressed)
-                .finish(&mut df)
-                .unwrap();
-            // tracing::info!("dataframe size {:?}", arrow);
-        });
 
-        handles.push(handle2);
-    }
+    // {
+    //     let src_conn = src_conn.clone();
+    //     let handle = tokio::task::spawn_blocking(move || {
+    //         let queries = &[CXQuery::from(
+    //             "SELECT * FROM part_account where part_account.bekid=1",
+    //         )];
+    //         let destination: Arrow2Destination =
+    //             get_arrow2(&src_conn, None, queries).expect("run failed");
+    //         let mut df = destination.polars().unwrap();
+    //         ParquetWriter::new(std::fs::File::create("/tmp/result1.parquet").unwrap())
+    //             .with_statistics(true)
+    //             .with_compression(ParquetCompression::Uncompressed)
+    //             .finish(&mut df)
+    //             .unwrap();
+    //         // tracing::info!("dataframe size {:?}", arrow);
+    //     });
+
+    //     handles.push(handle);
+    // }
+    // {
+    //     let src_conn = src_conn.clone();
+    //     let handle2 = tokio::task::spawn_blocking(move || {
+    //         let queries = &[CXQuery::from(
+    //             "SELECT * FROM part_account where part_account.bekid=2",
+    //         )];
+    //         let destination: Arrow2Destination =
+    //             get_arrow2(&src_conn, None, queries).expect("run failed");
+    //         let mut df = destination.polars().unwrap();
+    //         ParquetWriter::new(std::fs::File::create("/tmp/result2.parquet").unwrap())
+    //             .with_statistics(true)
+    //             .with_compression(ParquetCompression::Uncompressed)
+    //             .finish(&mut df)
+    //             .unwrap();
+    //         // tracing::info!("dataframe size {:?}", arrow);
+    //     });
+
+    //     handles.push(handle2);
+    // }
     let results = try_join_all(handles).await;
+
     match results {
         Ok(_) => tracing::info!("All tasks completed successfully"),
         Err(e) => tracing::error!("Error: {}", e),
