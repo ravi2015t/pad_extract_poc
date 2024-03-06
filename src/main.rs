@@ -18,19 +18,24 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
     tracing::info!("Inside the lambda function. ");
 
-    let source_conn = SourceConn::try_from(
-        "postgresql://dbo:dbo@partaccountpoc-cluster.cluster-ctcsve9jprsn.us-east-1.rds.amazonaws.com:5432/partaccountpoc?cxprotocol=binary",
-    )
-    .expect("parse conn str failed");
+    // let source_conn = SourceConn::try_from(
+    //     "postgresql://dbo:dbo@partaccountpoc-cluster.cluster-ctcsve9jprsn.us-east-1.rds.amazonaws.com:5432/partaccountpoc?cxprotocol=binary",
+    // )
+    // .expect("parse conn str failed");
 
-    let src_conn = Arc::new(source_conn);
+    // let src_conn = Arc::new(source_conn);
 
     tracing::info!("After getting back connection.");
 
     let mut handles = Vec::new();
 
     for i in 1..50 {
-        let src_conn = src_conn.clone();
+        // let src_conn = src_conn.clone();
+
+        let src_conn = SourceConn::try_from(
+        "postgresql://dbo:dbo@partaccountpoc-cluster.cluster-ctcsve9jprsn.us-east-1.rds.amazonaws.com:5432/partaccountpoc?cxprotocol=binary",
+    )
+    .expect("parse conn str failed");
         let handle = tokio::task::spawn_blocking(move || {
             let query = format!("SELECT * FROM part_account where part_account.bekid={}", i);
             let queries = &[CXQuery::from(query.as_str())];
