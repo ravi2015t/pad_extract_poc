@@ -2,21 +2,34 @@ use aws_config::BehaviorVersion;
 use aws_sdk_s3::primitives::ByteStream;
 use connectorx::prelude::*;
 use futures::future::try_join_all;
-use lambda_http::{run, service_fn, tracing, Body, Error, Request, Response};
+use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use polars::prelude::ParquetCompression;
 use polars::prelude::{df, ParquetWriter};
 use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::{convert::TryFrom, rc::Rc};
+use tokio::time::Instant;
 /// This is the main body for the function.
 /// Write your code inside it.
 /// There are some code example in the following URLs:
 /// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
+async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     // Extract some useful information from the request
+    let start_id = event
+        .query_string_parameters_ref()
+        .and_then(|params| params.first("startId"))
+        .unwrap();
+    let start_id = start_id.parse::<i32>().unwrap();
 
-    let message = format!("Hello , this is an AWS Lambda HTTP request");
+    let end_id = event
+        .query_string_parameters_ref()
+        .and_then(|params| params.first("endId"))
+        .unwrap();
+
+    let end_id = end_id.parse::<i32>().unwrap();
+
+    let start = Instant::now();
 
     tracing::info!("Inside the lambda function. ");
 
@@ -31,7 +44,7 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
 
     let mut handles = Vec::new();
 
-    for i in 1..50 {
+    for i in start_id..end_id {
         let src_conn = src_conn.clone();
 
         //     let src_conn = SourceConn::try_from(
@@ -72,7 +85,8 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
         Err(e) => tracing::error!("Error: {}", e),
     }
 
-    tracing::info!("After get Arrow");
+    let end = Instant::now();
+    let message = format!("Transform was completed in time {:?} ", end - start);
 
     let resp = Response::builder()
         .status(200)
