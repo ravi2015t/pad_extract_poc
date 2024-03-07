@@ -73,7 +73,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     match results {
         Ok(_) => {
             let mut transfer_tasks = Vec::new();
-            for i in 1..50 {
+            for i in start_id..end_id {
                 transfer_tasks.push(tokio::spawn(transfer_to_s3(i)));
             }
             for task in transfer_tasks {
@@ -96,7 +96,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     Ok(resp)
 }
 
-async fn transfer_to_s3(id: u16) {
+async fn transfer_to_s3(id: i32) {
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
     let s3_client = aws_sdk_s3::Client::new(&config);
     let bucket_name = "pensioncalcseast1";
