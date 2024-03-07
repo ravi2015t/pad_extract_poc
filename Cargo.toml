@@ -21,4 +21,6 @@ polars = { version = "0.32.1", features = ["polars-io", "parquet", "lazy", "dtyp
 openssl = { version = "0.10.35", features = ["vendored"] }
 tokio = { version = "1", features = ["macros"] }
 futures = "0.3.30"
+aws-sdk-s3 = "1.12.0"
+aws-config = "1.1.2"
 

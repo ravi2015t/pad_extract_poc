@@ -1,12 +1,14 @@
-use connectorx::{destinations, prelude::*};
+use aws_config::BehaviorVersion;
+use aws_sdk_s3::primitives::ByteStream;
+use connectorx::prelude::*;
 use futures::future::try_join_all;
-use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
+use lambda_http::{run, service_fn, tracing, Body, Error, Request, Response};
 use polars::prelude::ParquetCompression;
 use polars::prelude::{df, ParquetWriter};
 use std::fs::File;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::{convert::TryFrom, rc::Rc};
-use tokio::task::JoinSet;
 /// This is the main body for the function.
 /// Write your code inside it.
 /// There are some code example in the following URLs:
@@ -53,75 +55,68 @@ async fn function_handler(_event: Request) -> Result<Response<Body>, Error> {
         handles.push(handle);
     }
 
-    // {
-    //     let src_conn = src_conn.clone();
-    //     let handle = tokio::task::spawn_blocking(move || {
-    //         let queries = &[CXQuery::from(
-    //             "SELECT * FROM part_account where part_account.bekid=1",
-    //         )];
-    //         let destination: Arrow2Destination =
-    //             get_arrow2(&src_conn, None, queries).expect("run failed");
-    //         let mut df = destination.polars().unwrap();
-    //         ParquetWriter::new(std::fs::File::create("/tmp/result1.parquet").unwrap())
-    //             .with_statistics(true)
-    //             .with_compression(ParquetCompression::Uncompressed)
-    //             .finish(&mut df)
-    //             .unwrap();
-    //         // tracing::info!("dataframe size {:?}", arrow);
-    //     });
-
-    //     handles.push(handle);
-    // }
-    // {
-    //     let src_conn = src_conn.clone();
-    //     let handle2 = tokio::task::spawn_blocking(move || {
-    //         let queries = &[CXQuery::from(
-    //             "SELECT * FROM part_account where part_account.bekid=2",
-    //         )];
-    //         let destination: Arrow2Destination =
-    //             get_arrow2(&src_conn, None, queries).expect("run failed");
-    //         let mut df = destination.polars().unwrap();
-    //         ParquetWriter::new(std::fs::File::create("/tmp/result2.parquet").unwrap())
-    //             .with_statistics(true)
-    //             .with_compression(ParquetCompression::Uncompressed)
-    //             .finish(&mut df)
-    //             .unwrap();
-    //         // tracing::info!("dataframe size {:?}", arrow);
-    //     });
-
-    //     handles.push(handle2);
-    // }
     let results = try_join_all(handles).await;
 
     match results {
-        Ok(_) => tracing::info!("All tasks completed successfully"),
+        Ok(_) => {
+            let mut transfer_tasks = Vec::new();
+            for i in 1..50 {
+                transfer_tasks.push(tokio::spawn(transfer_to_s3(i)));
+            }
+            for task in transfer_tasks {
+                let _ = task.await.expect("failed to transfer");
+            }
+
+            tracing::info!("All tasks completed successfully")
+        }
         Err(e) => tracing::error!("Error: {}", e),
     }
 
     tracing::info!("After get Arrow");
 
-    // let file_path = "/tmp/result1.parquet"; // Replace with your file path
-
-    // Open the file
-    // let file = File::open(file_path)?;
-
-    // Get the metadata of the file, which includes information like size
-    // let metadata = file.metadata()?;
-
-    // Extract the size from the metadata
-    // let file_size = metadata.len();
-
-    // Print the file size
-    // tracing::info!("Parquet File size: {} bytes", file_size);
-
-    // Return something that implements IntoResponse.
-    // It will be serialized to the right response event automatically by the runtime
     let resp = Response::builder()
         .status(200)
         .header("content-type", "text/html")
         .body(message.into())
         .map_err(Box::new)?;
     Ok(resp)
+}
+
+async fn transfer_to_s3(id: u16) {
+    let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+    let s3_client = aws_sdk_s3::Client::new(&config);
+    let bucket_name = "pensioncalcseast1";
+
+    let filename = format!("/tmp/result{}.parquet", id);
+    let body = ByteStream::from_path(Path::new(&filename)).await;
+
+    let s3_key = format!("results/result{}.parquet", id);
+
+    let response = s3_client
+        .put_object()
+        .bucket(bucket_name)
+        .body(body.unwrap())
+        .key(&s3_key)
+        .send()
+        .await;
+
+    match response {
+        Ok(_) => {
+            tracing::info!(
+                filename = %filename,
+                "data successfully stored in S3",
+            );
+            // Return `Response` (it will be serialized to JSON automatically by the runtime)
+        }
+        Err(err) => {
+            // In case of failure, log a detailed error to CloudWatch.
+            tracing::error!(
+                err = %err,
+                filename = %filename,
+                "failed to upload data to S3"
+            );
+        }
+    }
 }
 
 #[tokio::main]
