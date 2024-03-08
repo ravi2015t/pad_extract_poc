@@ -4,7 +4,7 @@ use connectorx::prelude::*;
 use futures::future::try_join_all;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use polars::prelude::ParquetCompression;
-use polars::prelude::{df, ParquetWriter};
+use polars::prelude::{df, DataFrame, ParquetWriter};
 use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -42,48 +42,65 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     tracing::info!("After getting back connection.");
 
-    let mut handles = Vec::new();
+    //check batched reads.
 
-    for i in start_id..end_id {
-        let src_conn = src_conn.clone();
+    let handle = tokio::task::spawn_blocking(move || {
+        let query = format!(
+            "SELECT * FROM part_account where part_account.bekid>={} and part_account.bekid<={}",
+            start_id, end_id
+        );
+        let queries = &[CXQuery::from(query.as_str())];
+        let destination: Arrow2Destination =
+            get_arrow2(&src_conn, None, queries).expect("run failed");
+        let df: DataFrame = destination.polars().unwrap();
+        tracing::info!("Df size {:?}", df.height());
+    })
+    .await;
 
-        //     let src_conn = SourceConn::try_from(
-        //     "postgresql://dbo:dbo@partaccountpoc-cluster.cluster-ctcsve9jprsn.us-east-1.rds.amazonaws.com:5432/partaccountpoc?cxprotocol=binary",
-        // )
-        // .expect("parse conn str failed");
-        let handle = tokio::task::spawn_blocking(move || {
-            let query = format!("SELECT * FROM part_account where part_account.bekid={}", i);
-            let queries = &[CXQuery::from(query.as_str())];
-            let destination: Arrow2Destination =
-                get_arrow2(&src_conn, None, queries).expect("run failed");
-            let mut df = destination.polars().unwrap();
-            ParquetWriter::new(std::fs::File::create(format!("/tmp/result{}.parquet", i)).unwrap())
-                .with_statistics(true)
-                .with_compression(ParquetCompression::Uncompressed)
-                .finish(&mut df)
-                .unwrap();
-            // tracing::info!("dataframe size {:?}", arrow);
-        });
+    //check separate connections.
+    // let mut handles = Vec::new();
 
-        handles.push(handle);
-    }
+    // for i in start_id..end_id {
+    //     let src_conn = src_conn.clone();
 
-    let results = try_join_all(handles).await;
+    //     //     let src_conn = SourceConn::try_from(
+    //     //     "postgresql://dbo:dbo@partaccountpoc-cluster.cluster-ctcsve9jprsn.us-east-1.rds.amazonaws.com:5432/partaccountpoc?cxprotocol=binary",
+    //     // )
+    //     // .expect("parse conn str failed");
+    //     let handle = tokio::task::spawn_blocking(move || {
+    //         let query = format!("SELECT * FROM part_account where part_account.bekid={}", i);
+    //         let queries = &[CXQuery::from(query.as_str())];
+    //         let destination: Arrow2Destination =
+    //             get_arrow2(&src_conn, None, queries).expect("run failed");
+    //         let mut df: DataFrame = destination.polars().unwrap();
 
-    match results {
-        Ok(_) => {
-            let mut transfer_tasks = Vec::new();
-            for i in start_id..end_id {
-                transfer_tasks.push(tokio::spawn(transfer_to_s3(i)));
-            }
-            for task in transfer_tasks {
-                let _ = task.await.expect("failed to transfer");
-            }
+    //         ParquetWriter::new(std::fs::File::create(format!("/tmp/result{}.parquet", i)).unwrap())
+    //             .with_statistics(true)
+    //             .with_compression(ParquetCompression::Uncompressed)
+    //             .finish(&mut df)
+    //             .unwrap();
+    //         // tracing::info!("dataframe size {:?}", arrow);
+    //     });
 
-            tracing::info!("All tasks completed successfully")
-        }
-        Err(e) => tracing::error!("Error: {}", e),
-    }
+    //     handles.push(handle);
+    // }
+
+    // let results = try_join_all(handles).await;
+
+    // match results {
+    //     Ok(_) => {
+    //         let mut transfer_tasks = Vec::new();
+    //         for i in start_id..end_id {
+    //             transfer_tasks.push(tokio::spawn(transfer_to_s3(i)));
+    //         }
+    //         for task in transfer_tasks {
+    //             let _ = task.await.expect("failed to transfer");
+    //         }
+
+    //         tracing::info!("All tasks completed successfully")
+    //     }
+    //     Err(e) => tracing::error!("Error: {}", e),
+    // }
 
     let end = Instant::now();
     let message = format!("Transform was completed in time {:?} ", end - start);
