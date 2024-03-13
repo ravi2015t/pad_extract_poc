@@ -44,7 +44,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     //check batched reads.
 
-    let handle = tokio::task::spawn_blocking(move || {
+    let _handle = tokio::task::spawn_blocking(move || {
         let query = format!(
             "SELECT * FROM part_account where part_account.bekid>={} and part_account.bekid<={}",
             start_id, end_id
@@ -52,10 +52,22 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         let queries = &[CXQuery::from(query.as_str())];
         let destination: Arrow2Destination =
             get_arrow2(&src_conn, None, queries).expect("run failed");
-        let df: DataFrame = destination.polars().unwrap();
+        let mut df: DataFrame = destination.polars().unwrap();
+
+        ParquetWriter::new(
+            std::fs::File::create(format!("/tmp/result{}.parquet", start_id)).unwrap(),
+        )
+        .with_statistics(true)
+        .set_parallel(true)
+        .with_compression(ParquetCompression::Uncompressed)
+        .finish(&mut df)
+        .unwrap();
+
         tracing::info!("Df size {:?}", df.height());
     })
     .await;
+
+    transfer_to_s3(start_id).await;
 
     //check separate connections.
     // let mut handles = Vec::new();
