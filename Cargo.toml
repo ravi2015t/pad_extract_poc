@@ -1,5 +1,5 @@
 [package]
-name = "pad_extract_poc"
+name = "pad_extract_poc_bulk"
 version = "0.1.0"
 edition = "2021"
 
